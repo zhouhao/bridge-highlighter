@@ -6,7 +6,7 @@ export default defineConfig({
     name: 'Shark Eagle Highlighter',
     description: 'Save and highlight text selections across page visits',
     version: '1.1.4',
-    permissions: ['storage', 'contextMenus', 'sidePanel', 'tabs'],
+    permissions: ['contextMenus', 'sidePanel', 'tabs'],
     icons: {
       16: 'icon/16.png',
       32: 'icon/32.png',

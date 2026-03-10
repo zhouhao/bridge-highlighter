@@ -360,18 +360,8 @@ async function deleteHighlight(highlightId: string, url?: string): Promise<void>
   }
 }
 
-// Initialize authentication UI
-import { AuthUI } from './auth-ui';
-new AuthUI();
-
 // Initial load
 loadCurrentPageHighlights();
-
-chrome.storage.onChanged.addListener(() => {
-  if (document.querySelector('.tab.active')?.getAttribute('data-tab') === 'current') {
-    loadCurrentPageHighlights();
-  }
-});
 
 window.addEventListener('highlights-updated', () => {
   if (document.querySelector('.tab.active')?.getAttribute('data-tab') === 'current') {
