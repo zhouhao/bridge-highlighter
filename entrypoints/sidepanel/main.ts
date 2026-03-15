@@ -38,39 +38,48 @@ function truncateText(text: string, maxLength: number = 100): string {
 }
 
 // Create highlight item element
+function isStandaloneNote(highlight: HighlightPosition): boolean {
+  return highlight.xpath === '';
+}
+
 function createHighlightElement(highlight: HighlightPosition, url?: string): HTMLElement {
   const item = document.createElement('div');
   item.className = 'highlight-item';
   item.dataset.highlightId = highlight.id;
 
-  const textDiv = document.createElement('div');
-  const color = highlight.color || 'yellow';
-  textDiv.className = `highlight-text color-${color}`;
-  textDiv.textContent = truncateText(highlight.text, 150);
-  textDiv.style.cursor = 'pointer';
-  textDiv.title = 'Click to navigate to this highlight';
+  const isNote = isStandaloneNote(highlight);
 
-  // Add click handler to navigate to highlight
-  textDiv.addEventListener('click', async () => {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab?.id) {
-      // Send message to content script to scroll to highlight
-      chrome.tabs.sendMessage(tab.id, {
-        action: 'scrollToHighlight',
-        highlightId: highlight.id
-      });
-    }
-  });
-
-  // Add comment if exists
-  if (highlight.comment) {
-    const commentDiv = document.createElement('div');
-    commentDiv.className = 'highlight-comment';
-    commentDiv.textContent = highlight.comment;
-    item.appendChild(textDiv);
-    item.appendChild(commentDiv);
+  if (isNote) {
+    const noteDiv = document.createElement('div');
+    noteDiv.className = 'note-text';
+    noteDiv.textContent = highlight.text;
+    item.appendChild(noteDiv);
   } else {
+    const textDiv = document.createElement('div');
+    const color = highlight.color || 'yellow';
+    textDiv.className = `highlight-text color-${color}`;
+    textDiv.textContent = truncateText(highlight.text, 150);
+    textDiv.style.cursor = 'pointer';
+    textDiv.title = 'Click to navigate to this highlight';
+
+    textDiv.addEventListener('click', async () => {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (tab?.id) {
+        chrome.tabs.sendMessage(tab.id, {
+          action: 'scrollToHighlight',
+          highlightId: highlight.id
+        });
+      }
+    });
+
     item.appendChild(textDiv);
+
+    if (highlight.comment) {
+      const commentDiv = document.createElement('div');
+      commentDiv.className = 'highlight-comment';
+      commentDiv.textContent = highlight.comment;
+      item.appendChild(commentDiv);
+    }
   }
 
   // Add tags if exist
@@ -359,6 +368,113 @@ async function deleteHighlight(highlightId: string, url?: string): Promise<void>
     loadCurrentPageHighlights();
   }
 }
+
+// Note form
+const btnAddNote = document.getElementById('btn-add-note') as HTMLButtonElement;
+const noteForm = document.getElementById('note-form') as HTMLElement;
+const noteTextarea = document.getElementById('note-textarea') as HTMLTextAreaElement;
+const noteTagsInput = document.getElementById('note-tags-input') as HTMLInputElement;
+const noteTagsContainer = document.getElementById('note-tags-container') as HTMLElement;
+const noteCancelBtn = document.getElementById('note-cancel') as HTMLButtonElement;
+const noteSaveBtn = document.getElementById('note-save') as HTMLButtonElement;
+
+let noteTags: string[] = [];
+
+function renderNoteTags(): void {
+  noteTagsContainer.innerHTML = '';
+  noteTags.forEach((tag, index) => {
+    const tagSpan = document.createElement('span');
+    tagSpan.className = 'edit-form-tag';
+    tagSpan.textContent = tag;
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'edit-form-tag-remove';
+    removeBtn.textContent = '×';
+    removeBtn.addEventListener('click', () => {
+      noteTags.splice(index, 1);
+      renderNoteTags();
+    });
+
+    tagSpan.appendChild(removeBtn);
+    noteTagsContainer.appendChild(tagSpan);
+  });
+}
+
+noteTagsInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const tag = noteTagsInput.value.trim();
+    if (tag && !noteTags.includes(tag)) {
+      noteTags.push(tag);
+      renderNoteTags();
+    }
+    noteTagsInput.value = '';
+  } else if (e.key === 'Backspace' && noteTagsInput.value === '' && noteTags.length > 0) {
+    noteTags.pop();
+    renderNoteTags();
+  }
+});
+
+btnAddNote.addEventListener('click', () => {
+  noteForm.classList.add('active');
+  btnAddNote.style.display = 'none';
+  noteTextarea.value = '';
+  noteTagsInput.value = '';
+  noteTags = [];
+  renderNoteTags();
+  setTimeout(() => noteTextarea.focus(), 50);
+});
+
+function closeNoteForm(): void {
+  noteForm.classList.remove('active');
+  btnAddNote.style.display = '';
+  noteTextarea.value = '';
+  noteTagsInput.value = '';
+  noteTags = [];
+  renderNoteTags();
+}
+
+noteCancelBtn.addEventListener('click', closeNoteForm);
+
+noteSaveBtn.addEventListener('click', async () => {
+  const text = noteTextarea.value.trim();
+  if (!text) return;
+
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.url) return;
+
+  const highlight: HighlightPosition = {
+    id: crypto.randomUUID(),
+    text,
+    xpath: '',
+    startOffset: 0,
+    endOffset: 0,
+    beforeContext: '',
+    afterContext: '',
+    createdAt: Date.now(),
+    tags: noteTags.length > 0 ? [...noteTags] : undefined,
+  };
+
+  await new Promise<void>((resolve) => {
+    chrome.runtime.sendMessage(
+      { action: 'saveHighlightData', url: tab.url, highlight },
+      () => resolve(),
+    );
+  });
+
+  closeNoteForm();
+  loadCurrentPageHighlights();
+});
+
+noteTextarea.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+    e.preventDefault();
+    noteSaveBtn.click();
+  }
+  if (e.key === 'Escape') {
+    closeNoteForm();
+  }
+});
 
 // Initial load
 loadCurrentPageHighlights();

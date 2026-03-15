@@ -280,21 +280,38 @@ function renderPageHighlightsContent(page: PageHighlights): void {
   `;
 
   for (const h of page.highlights) {
-    const colorClass = 'hl-' + (h.color || 'yellow');
-    html += `
-      <div class="highlight-card">
-        <div class="highlight-card-text ${colorClass}">${escapeHtml(h.text)}</div>
-        ${h.comment ? `<div class="highlight-card-comment">${escapeHtml(h.comment)}</div>` : ''}
-        <div class="highlight-card-meta">
-          <span class="highlight-card-date">${formatDate(h.createdAt)}</span>
-          ${
-            h.tags && h.tags.length > 0
-              ? `<div class="highlight-card-tags">${h.tags.map((t) => `<span class="highlight-tag">${escapeHtml(t)}</span>`).join('')}</div>`
-              : ''
-          }
+    const isNote = h.xpath === '';
+    if (isNote) {
+      html += `
+        <div class="highlight-card" style="border-left: 3px solid #4f8cff;">
+          <div style="font-size: 14px; line-height: 1.6; white-space: pre-wrap; color: #333;">${escapeHtml(h.text)}</div>
+          <div class="highlight-card-meta">
+            <span class="highlight-card-date">${formatDate(h.createdAt)}</span>
+            ${
+              h.tags && h.tags.length > 0
+                ? `<div class="highlight-card-tags">${h.tags.map((t) => `<span class="highlight-tag">${escapeHtml(t)}</span>`).join('')}</div>`
+                : ''
+            }
+          </div>
         </div>
-      </div>
-    `;
+      `;
+    } else {
+      const colorClass = 'hl-' + (h.color || 'yellow');
+      html += `
+        <div class="highlight-card">
+          <div class="highlight-card-text ${colorClass}">${escapeHtml(h.text)}</div>
+          ${h.comment ? `<div class="highlight-card-comment">${escapeHtml(h.comment)}</div>` : ''}
+          <div class="highlight-card-meta">
+            <span class="highlight-card-date">${formatDate(h.createdAt)}</span>
+            ${
+              h.tags && h.tags.length > 0
+                ? `<div class="highlight-card-tags">${h.tags.map((t) => `<span class="highlight-tag">${escapeHtml(t)}</span>`).join('')}</div>`
+                : ''
+            }
+          </div>
+        </div>
+      `;
+    }
   }
 
   editorPreview.innerHTML = html;

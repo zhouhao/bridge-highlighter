@@ -385,6 +385,80 @@
       border-bottom: 1px solid #e0e0e0;
     }
 
+    .add-note-bar {
+      margin-bottom: 12px;
+    }
+
+    .btn-add-note {
+      width: 100%;
+      padding: 8px 12px;
+      background: white;
+      border: 1px dashed #ccc;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      color: #666;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .btn-add-note:hover {
+      background: #e8f0ff;
+      border-color: #4f8cff;
+      color: #4f8cff;
+    }
+
+    .note-form {
+      display: none;
+      background: white;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+
+    .note-form.active { display: block; }
+
+    .note-form-textarea {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 13px;
+      font-family: inherit;
+      resize: vertical;
+      min-height: 80px;
+      box-sizing: border-box;
+      margin-bottom: 8px;
+    }
+
+    .note-form-textarea:focus {
+      outline: none;
+      border-color: #4f8cff;
+    }
+
+    .note-form-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .note-text {
+      font-size: 14px;
+      line-height: 1.6;
+      color: #333;
+      margin-bottom: 8px;
+      padding: 10px 12px;
+      border-radius: 6px;
+      word-break: break-word;
+      background: #f0f4ff;
+      border-left: 3px solid #4f8cff;
+      white-space: pre-wrap;
+    }
+
   </style>
 </head>
 <body>
@@ -397,6 +471,20 @@
 
   <div id="current-panel" class="panel active">
     <div class="current-page-highlights">
+      <div class="add-note-bar">
+        <button class="btn-add-note" id="btn-add-note">+ Add Note</button>
+      </div>
+      <div class="note-form" id="note-form">
+        <textarea class="note-form-textarea" id="note-textarea" placeholder="Write a note for this page..."></textarea>
+        <div class="edit-form-group" style="margin-bottom: 8px;">
+          <input class="edit-form-input" type="text" id="note-tags-input" placeholder="Add tags (press Enter)">
+          <div class="edit-form-tags" id="note-tags-container"></div>
+        </div>
+        <div class="note-form-actions">
+          <button class="btn-cancel" id="note-cancel">Cancel</button>
+          <button class="btn-save" id="note-save">Save</button>
+        </div>
+      </div>
       <div id="current-list"></div>
     </div>
   </div>
