@@ -1,4 +1,4 @@
-# Shark Eagle Highlighter - AI Assistant Instructions
+# Bridge Highlighter - AI Assistant Instructions
 
 ## Project Overview
 

@@ -1,4 +1,4 @@
-# Shark Eagle Highlighter
+# Bridge Highlighter
 
 A Chrome extension (MV3) built with [WXT](https://wxt.dev/) that allows you to save and highlight text selections. Highlights persist and are automatically restored when you revisit the page.
 
@@ -63,7 +63,7 @@ pnpm zip
    - Alt+Click on the highlighted text, OR
    - Click "Delete" in the side panel
 4. **Revisit a page**: Highlights are automatically restored
-5. **Open Notes App**: Right-click the extension icon → "Options", or go to `chrome://extensions` → Shark Eagle → Details → Extension options
+5. **Open Notes App**: Right-click the extension icon → "Options", or go to `chrome://extensions` → Bridge → Details → Extension options
 
 ## Project Structure
 

@@ -3,7 +3,7 @@ import { defineConfig } from 'wxt';
 export default defineConfig({
   modules: [],
   manifest: {
-    name: 'Shark Eagle Highlighter',
+    name: 'Bridge Highlighter',
     description: 'Save and highlight text selections across page visits',
     version: '1.1.4',
     permissions: ['contextMenus', 'sidePanel', 'tabs'],
@@ -17,7 +17,7 @@ export default defineConfig({
       default_path: 'sidepanel.html'
     },
     action: {
-      default_title: 'Open Shark Eagle Panel',
+      default_title: 'Open Bridge Panel',
       default_icon: {
         16: 'icon/16.png',
         32: 'icon/32.png',
