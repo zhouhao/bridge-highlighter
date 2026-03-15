@@ -21,15 +21,6 @@ A Chrome extension (MV3) built with [WXT](https://wxt.dev/) that allows you to s
 - **Category management**: Create, rename, and delete note categories
 - **Search**: Filter notes by title and content
 
-### Cloud Sync Features (Optional)
-- **Cross-Device Sync**: Share highlights between Chrome browsers on different devices
-- **User Authentication**: Multi-user support with email/password authentication
-- **Cloud Backup**: Automatic backup of all highlights to Supabase
-- **Real-time Sync**: Changes sync automatically across devices
-- **Offline Support**: Works offline with local storage, syncs when online
-
-> **Note**: Cloud sync requires Supabase setup. See [supabase/README.md](supabase/README.md) for configuration instructions.
-
 ## How Position Tracking Works
 
 The extension uses multiple strategies to accurately identify highlighted text:
@@ -94,7 +85,6 @@ chrome-highlighter/
 │   ├── modal.ts             # Modal utilities
 │   └── xpath.ts             # XPath utilities
 ├── wxt.config.ts            # WXT configuration
-├── .env.example             # Example environment configuration
 └── package.json
 ```
 
@@ -107,14 +97,3 @@ chrome-highlighter/
 - **Diagrams**: [mermaid](https://github.com/mermaid-js/mermaid) for diagram support
 - **Permissions**: `contextMenus`, `sidePanel`, `tabs`
 
-## Cloud Sync Setup
-
-To enable cloud sync features:
-
-1. Follow the setup guide in [supabase/README.md](supabase/README.md)
-2. Create a Supabase project and run the database migration
-3. Configure your credentials in `.env` (copy from `.env.example`)
-4. Build and reload the extension
-5. Use the "Account" tab in the side panel to sign up/sign in
-
-The extension works fully offline without Supabase configuration. Cloud sync is an optional enhancement.
