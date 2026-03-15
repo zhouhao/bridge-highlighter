@@ -4,31 +4,38 @@ declare global {
   const ContentScriptContext: typeof import('wxt/utils/content-script-context').ContentScriptContext
   const InvalidMatchPattern: typeof import('wxt/utils/match-patterns').InvalidMatchPattern
   const MatchPattern: typeof import('wxt/utils/match-patterns').MatchPattern
-  const addHighlight: typeof import('/Users/hzhou/GitHub/chrome-highlighter/utils/storage').addHighlight
   const browser: typeof import('wxt/browser').browser
+  const createCategory: typeof import('/Users/hzhou/GitHub/bridge-highlighter/utils/notes-db').createCategory
   const createIframeUi: typeof import('wxt/utils/content-script-ui/iframe').createIframeUi
   const createIntegratedUi: typeof import('wxt/utils/content-script-ui/integrated').createIntegratedUi
+  const createNote: typeof import('/Users/hzhou/GitHub/bridge-highlighter/utils/notes-db').createNote
   const createShadowRootUi: typeof import('wxt/utils/content-script-ui/shadow-root').createShadowRootUi
   const defineAppConfig: typeof import('wxt/utils/define-app-config').defineAppConfig
   const defineBackground: typeof import('wxt/utils/define-background').defineBackground
   const defineContentScript: typeof import('wxt/utils/define-content-script').defineContentScript
   const defineUnlistedScript: typeof import('wxt/utils/define-unlisted-script').defineUnlistedScript
   const defineWxtPlugin: typeof import('wxt/utils/define-wxt-plugin').defineWxtPlugin
+  const deleteCategory: typeof import('/Users/hzhou/GitHub/bridge-highlighter/utils/notes-db').deleteCategory
+  const deleteNote: typeof import('/Users/hzhou/GitHub/bridge-highlighter/utils/notes-db').deleteNote
   const fakeBrowser: typeof import('wxt/testing').fakeBrowser
-  const generateId: typeof import('/Users/hzhou/GitHub/chrome-highlighter/utils/storage').generateId
-  const getAllHighlights: typeof import('/Users/hzhou/GitHub/chrome-highlighter/utils/storage').getAllHighlights
-  const getElementByXPath: typeof import('/Users/hzhou/GitHub/chrome-highlighter/utils/xpath').getElementByXPath
-  const getStorageKey: typeof import('/Users/hzhou/GitHub/chrome-highlighter/utils/storage').getStorageKey
-  const getXPath: typeof import('/Users/hzhou/GitHub/chrome-highlighter/utils/xpath').getXPath
-  const injectModalStyles: typeof import('/Users/hzhou/GitHub/chrome-highlighter/utils/modal').injectModalStyles
+  const getAllCategories: typeof import('/Users/hzhou/GitHub/bridge-highlighter/utils/notes-db').getAllCategories
+  const getAllHighlights: typeof import('/Users/hzhou/GitHub/bridge-highlighter/utils/db').getAllHighlights
+  const getElementByXPath: typeof import('/Users/hzhou/GitHub/bridge-highlighter/utils/xpath').getElementByXPath
+  const getHighlightsForUrl: typeof import('/Users/hzhou/GitHub/bridge-highlighter/utils/db').getHighlightsForUrl
+  const getNote: typeof import('/Users/hzhou/GitHub/bridge-highlighter/utils/notes-db').getNote
+  const getNotesByCategory: typeof import('/Users/hzhou/GitHub/bridge-highlighter/utils/notes-db').getNotesByCategory
+  const getXPath: typeof import('/Users/hzhou/GitHub/bridge-highlighter/utils/xpath').getXPath
+  const injectModalStyles: typeof import('/Users/hzhou/GitHub/bridge-highlighter/utils/modal').injectModalStyles
   const injectScript: typeof import('wxt/utils/inject-script').injectScript
-  const loadHighlights: typeof import('/Users/hzhou/GitHub/chrome-highlighter/utils/storage').loadHighlights
-  const normalizeUrl: typeof import('/Users/hzhou/GitHub/chrome-highlighter/utils/storage').normalizeUrl
-  const removeHighlight: typeof import('/Users/hzhou/GitHub/chrome-highlighter/utils/storage').removeHighlight
-  const removeModal: typeof import('/Users/hzhou/GitHub/chrome-highlighter/utils/modal').removeModal
-  const saveHighlights: typeof import('/Users/hzhou/GitHub/chrome-highlighter/utils/storage').saveHighlights
-  const showHighlightModal: typeof import('/Users/hzhou/GitHub/chrome-highlighter/utils/modal').showHighlightModal
+  const normalizeUrl: typeof import('/Users/hzhou/GitHub/bridge-highlighter/utils/db').normalizeUrl
+  const removeHighlight: typeof import('/Users/hzhou/GitHub/bridge-highlighter/utils/db').removeHighlight
+  const removeModal: typeof import('/Users/hzhou/GitHub/bridge-highlighter/utils/modal').removeModal
+  const renameCategory: typeof import('/Users/hzhou/GitHub/bridge-highlighter/utils/notes-db').renameCategory
+  const saveHighlight: typeof import('/Users/hzhou/GitHub/bridge-highlighter/utils/db').saveHighlight
+  const showHighlightModal: typeof import('/Users/hzhou/GitHub/bridge-highlighter/utils/modal').showHighlightModal
   const storage: typeof import('wxt/utils/storage').storage
+  const updateHighlight: typeof import('/Users/hzhou/GitHub/bridge-highlighter/utils/db').updateHighlight
+  const updateNote: typeof import('/Users/hzhou/GitHub/bridge-highlighter/utils/notes-db').updateNote
   const useAppConfig: typeof import('wxt/utils/app-config').useAppConfig
 }
 // for type re-export
@@ -61,9 +68,9 @@ declare global {
   export type { ScriptPublicPath, InjectScriptOptions } from 'wxt/utils/inject-script'
   import('wxt/utils/inject-script')
   // @ts-ignore
-  export type { HighlightMetadata } from '/Users/hzhou/GitHub/chrome-highlighter/utils/modal'
-  import('/Users/hzhou/GitHub/chrome-highlighter/utils/modal')
+  export type { HighlightMetadata } from '/Users/hzhou/GitHub/bridge-highlighter/utils/modal'
+  import('/Users/hzhou/GitHub/bridge-highlighter/utils/modal')
   // @ts-ignore
-  export type { HighlightColor, HighlightPosition, PageHighlights } from '/Users/hzhou/GitHub/chrome-highlighter/utils/types'
-  import('/Users/hzhou/GitHub/chrome-highlighter/utils/types')
+  export type { HighlightColor, HighlightPosition, PageHighlights, NoteCategory, Note } from '/Users/hzhou/GitHub/bridge-highlighter/utils/types'
+  import('/Users/hzhou/GitHub/bridge-highlighter/utils/types')
 }

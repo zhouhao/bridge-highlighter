@@ -17,8 +17,9 @@ declare module '#imports' {
   export { injectScript, ScriptPublicPath, InjectScriptOptions } from 'wxt/utils/inject-script';
   export { InvalidMatchPattern, MatchPattern } from 'wxt/utils/match-patterns';
   export { fakeBrowser } from 'wxt/testing';
+  export { normalizeUrl, getHighlightsForUrl, saveHighlight, updateHighlight, removeHighlight, getAllHighlights } from '../utils/db';
   export { injectModalStyles, showHighlightModal, removeModal, HighlightMetadata } from '../utils/modal';
-  export { generateId, normalizeUrl, getStorageKey, saveHighlights, loadHighlights, addHighlight, removeHighlight, getAllHighlights } from '../utils/storage';
-  export { HighlightColor, HighlightPosition, PageHighlights } from '../utils/types';
+  export { getAllCategories, createCategory, renameCategory, deleteCategory, getNotesByCategory, getNote, createNote, updateNote, deleteNote } from '../utils/notes-db';
+  export { HighlightColor, HighlightPosition, PageHighlights, NoteCategory, Note } from '../utils/types';
   export { getXPath, getElementByXPath } from '../utils/xpath';
 }

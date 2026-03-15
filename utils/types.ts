@@ -20,3 +20,19 @@ export interface PageHighlights {
   url: string;
   highlights: HighlightPosition[];
 }
+
+export interface NoteCategory {
+  id: string;
+  name: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface Note {
+  id: string;
+  categoryId: string;
+  title: string;
+  content: string;
+  createdAt: number;
+  updatedAt: number;
+}

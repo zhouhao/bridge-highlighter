@@ -1,224 +1,71 @@
-import type { HighlightColor, HighlightPosition, PageHighlights } from '@/utils/types';
+import { marked, type Tokens } from 'marked';
+import mermaid from 'mermaid';
+import type { NoteCategory, Note, HighlightPosition, PageHighlights } from '@/utils/types';
+import {
+  getAllCategories,
+  createCategory,
+  renameCategory,
+  deleteCategory,
+  getNotesByCategory,
+  getNote,
+  createNote,
+  updateNote,
+  deleteNote,
+} from '@/utils/notes-db';
 
-// State
-let allHighlights: Array<HighlightPosition & { url: string }> = [];
-let filteredHighlights: Array<HighlightPosition & { url: string }> = [];
-let currentPage = 1;
-let itemsPerPage = 20;
-let currentSort = { column: 'createdAt', direction: 'desc' as 'asc' | 'desc' };
-let currentTagFilter = '';
-let currentSearchQuery = '';
-let editingHighlightId: string | null = null;
-let editingHighlightUrl: string | null = null;
-let editTags: string[] = [];
+const PAGE_HIGHLIGHTS_ID = '__page_highlights__';
 
-// DOM Elements
-const tableBody = document.getElementById('highlights-table') as HTMLElement;
-const paginationEl = document.getElementById('pagination') as HTMLElement;
-const paginationInfo = document.getElementById('pagination-info') as HTMLElement;
-const paginationControls = document.getElementById('pagination-controls') as HTMLElement;
-const tagFilter = document.getElementById('tag-filter') as HTMLSelectElement;
-const searchInput = document.getElementById('search-input') as HTMLInputElement;
-const refreshBtn = document.getElementById('refresh-btn') as HTMLButtonElement;
-const totalCountEl = document.getElementById('total-count') as HTMLElement;
-const pagesCountEl = document.getElementById('pages-count') as HTMLElement;
-const tagsCountEl = document.getElementById('tags-count') as HTMLElement;
+let categories: NoteCategory[] = [];
+let currentCategoryId: string | null = null;
+let notes: Note[] = [];
+let currentNoteId: string | null = null;
+let isPreviewMode = false;
+let pageHighlightsData: PageHighlights[] = [];
+let searchQuery = '';
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
-// Modal Elements
-const editModal = document.getElementById('edit-modal') as HTMLElement;
-const editComment = document.getElementById('edit-comment') as HTMLTextAreaElement;
-const editTagsContainer = document.getElementById('edit-tags-container') as HTMLDivElement;
-const editTagsInput = document.getElementById('edit-tags-input') as HTMLInputElement;
+const categoryList = document.getElementById('category-list') as HTMLElement;
+const addCategoryBtn = document.getElementById('add-category-btn') as HTMLButtonElement;
+const notesList = document.getElementById('notes-list') as HTMLElement;
+const notesHeaderTitle = document.getElementById('notes-header-title') as HTMLElement;
+const addNoteBtn = document.getElementById('add-note-btn') as HTMLButtonElement;
+const notesSearchInput = document.getElementById('notes-search-input') as HTMLInputElement;
+const editorToolbar = document.getElementById('editor-toolbar') as HTMLElement;
+const noteTitle = document.getElementById('note-title') as HTMLInputElement;
+const editorBody = document.getElementById('editor-body') as HTMLElement;
+const editorEmpty = document.getElementById('editor-empty') as HTMLElement;
+const editorTextarea = document.getElementById('editor-textarea') as HTMLTextAreaElement;
+const editorPreview = document.getElementById('editor-preview') as HTMLElement;
+const btnEdit = document.getElementById('btn-edit') as HTMLButtonElement;
+const btnPreview = document.getElementById('btn-preview') as HTMLButtonElement;
+const btnDeleteNote = document.getElementById('btn-delete-note') as HTMLButtonElement;
+const saveIndicator = document.getElementById('save-indicator') as HTMLElement;
+const modalOverlay = document.getElementById('modal-overlay') as HTMLElement;
+const modalTitle = document.getElementById('modal-title') as HTMLElement;
+const modalInput = document.getElementById('modal-input') as HTMLInputElement;
 const modalCancel = document.getElementById('modal-cancel') as HTMLButtonElement;
-const modalSave = document.getElementById('modal-save') as HTMLButtonElement;
+const modalConfirm = document.getElementById('modal-confirm') as HTMLButtonElement;
 
-// Utility Functions
-function formatDate(timestamp: number): string {
-  const date = new Date(timestamp);
-  return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit'
-  });
-}
+mermaid.initialize({ startOnLoad: false, theme: 'default' });
 
-function truncateText(text: string, maxLength: number = 100): string {
-  if (text.length <= maxLength) return text;
-  return text.substring(0, maxLength) + '...';
-}
+const renderer = new marked.Renderer();
+const originalCodeRenderer = renderer.code;
 
-function getHostname(url: string): string {
-  try {
-    return new URL(url).hostname + new URL(url).pathname;
-  } catch {
-    return url;
+renderer.code = function (
+  this: typeof renderer,
+  token: Tokens.Code,
+): string {
+  if (token.lang === 'mermaid') {
+    return `<div class="mermaid">${escapeHtml(token.text)}</div>`;
   }
-}
-
-function getUniqueTags(highlights: Array<HighlightPosition & { url: string }>): string[] {
-  const tags = new Set<string>();
-  highlights.forEach(h => {
-    h.tags?.forEach(tag => tags.add(tag));
-  });
-  return Array.from(tags).sort();
-}
-
-// Sort Function
-function sortHighlights(
-  highlights: Array<HighlightPosition & { url: string }>,
-  column: string,
-  direction: 'asc' | 'desc'
-): Array<HighlightPosition & { url: string }> {
-  return [...highlights].sort((a, b) => {
-    let aVal: string | number;
-    let bVal: string | number;
-
-    switch (column) {
-      case 'text':
-        aVal = a.text.toLowerCase();
-        bVal = b.text.toLowerCase();
-        break;
-      case 'url':
-        aVal = getHostname(a.url).toLowerCase();
-        bVal = getHostname(b.url).toLowerCase();
-        break;
-      case 'color':
-        aVal = a.color || 'yellow';
-        bVal = b.color || 'yellow';
-        break;
-      case 'tags':
-        aVal = (a.tags?.join(', ') || '').toLowerCase();
-        bVal = (b.tags?.join(', ') || '').toLowerCase();
-        break;
-      case 'comment':
-        aVal = (a.comment || '').toLowerCase();
-        bVal = (b.comment || '').toLowerCase();
-        break;
-      case 'createdAt':
-        aVal = a.createdAt;
-        bVal = b.createdAt;
-        break;
-      default:
-        aVal = a.createdAt;
-        bVal = b.createdAt;
-    }
-
-    if (aVal < bVal) return direction === 'asc' ? -1 : 1;
-    if (aVal > bVal) return direction === 'asc' ? 1 : -1;
-    return 0;
-  });
-}
-
-// Filter Function
-function filterHighlights(): Array<HighlightPosition & { url: string }> {
-  return allHighlights.filter(h => {
-    // Tag filter
-    if (currentTagFilter && (!h.tags || !h.tags.includes(currentTagFilter))) {
-      return false;
-    }
-
-    // Search filter
-    if (currentSearchQuery) {
-      const query = currentSearchQuery.toLowerCase();
-      const textMatch = h.text.toLowerCase().includes(query);
-      const commentMatch = h.comment?.toLowerCase().includes(query) || false;
-      const tagMatch = h.tags?.some(t => t.toLowerCase().includes(query)) || false;
-      const urlMatch = getHostname(h.url).toLowerCase().includes(query);
-
-      if (!textMatch && !commentMatch && !tagMatch && !urlMatch) {
-        return false;
-      }
-    }
-
-    return true;
-  });
-}
-
-// Render Table
-function renderTable(): void {
-  // Apply filters
-  filteredHighlights = filterHighlights();
-
-  // Apply sort
-  filteredHighlights = sortHighlights(
-    filteredHighlights,
-    currentSort.column,
-    currentSort.direction
-  );
-
-  // Calculate pagination
-  const totalItems = filteredHighlights.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
-  const pageHighlights = filteredHighlights.slice(startIndex, endIndex);
-
-  // Update stats
-  totalCountEl.textContent = totalItems.toString();
-
-  const uniquePages = new Set(allHighlights.map(h => h.url)).size;
-  pagesCountEl.textContent = uniquePages.toString();
-
-  const uniqueTags = getUniqueTags(allHighlights);
-  tagsCountEl.textContent = uniqueTags.length.toString();
-
-  // Render table
-  if (totalItems === 0) {
-    tableBody.innerHTML = `
-      <tr>
-        <td colspan="7" class="empty-state">
-          <div class="empty-state-icon">📭</div>
-          <p>No highlights found</p>
-        </td>
-      </tr>
-    `;
-    paginationEl.style.display = 'none';
-    return;
+  if (originalCodeRenderer) {
+    return originalCodeRenderer.call(this, token);
   }
+  const langClass = token.lang ? ` class="language-${escapeHtml(token.lang)}"` : '';
+  return `<pre><code${langClass}>${escapeHtml(token.text)}</code></pre>`;
+};
 
-  tableBody.innerHTML = pageHighlights.map(h => `
-    <tr data-highlight-id="${h.id}">
-      <td class="highlight-text-cell">
-        <span class="highlight-text-preview color-${h.color || 'yellow'}" title="${escapeHtml(h.text)}">
-          ${escapeHtml(truncateText(h.text, 150))}
-        </span>
-      </td>
-      <td class="url-cell">
-        <a href="${h.url}" target="_blank" title="${h.url}">
-          ${escapeHtml(getHostname(h.url))}
-        </a>
-      </td>
-      <td>
-        <span class="tag" style="background: ${getColorHex(h.color || 'yellow')}; color: #333;">
-          ${h.color || 'yellow'}
-        </span>
-      </td>
-      <td class="tags-cell">
-        ${h.tags && h.tags.length > 0 ? `
-          <div class="tags-list">
-            ${h.tags.map(tag => `<span class="tag">${escapeHtml(tag)}</span>`).join('')}
-          </div>
-        ` : '<span style="color: #999;">-</span>'}
-      </td>
-      <td class="comment-cell">
-        ${h.comment ? escapeHtml(truncateText(h.comment, 80)) : '<span style="color: #999;">-</span>'}
-      </td>
-      <td class="date-cell">${formatDate(h.createdAt)}</td>
-      <td class="actions-cell">
-        <button class="action-btn btn-navigate" data-action="navigate" data-url="${h.url}">Open</button>
-        <button class="action-btn btn-edit" data-action="edit" data-id="${h.id}" data-url="${h.url}">Edit</button>
-        <button class="action-btn btn-delete" data-action="delete" data-id="${h.id}" data-url="${h.url}">Delete</button>
-      </td>
-    </tr>
-  `).join('');
-
-  // Add event listeners
-  document.querySelectorAll('[data-action]').forEach(btn => {
-    btn.addEventListener('click', handleAction);
-  });
-
-  // Render pagination
-  renderPagination(totalPages);
-}
+marked.use({ renderer, gfm: true, breaks: true });
 
 function escapeHtml(text: string): string {
   const div = document.createElement('div');
@@ -226,361 +73,571 @@ function escapeHtml(text: string): string {
   return div.innerHTML;
 }
 
-function getColorHex(color: string): string {
-  const colors: Record<string, string> = {
-    yellow: '#ffeb3b',
-    red: '#ff8a80',
-    green: '#b9f6ca',
-    lightBlue: '#80d8ff',
-    lightPurple: '#ea80fc'
-  };
-  return colors[color] || colors.yellow;
+function formatDate(timestamp: number): string {
+  const d = new Date(timestamp);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffDays === 0) {
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return d.toLocaleDateString([], { weekday: 'short' });
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
-// Render Pagination
-function renderPagination(totalPages: number): void {
-  if (totalPages <= 1) {
-    paginationEl.style.display = 'none';
+function getHostname(url: string): string {
+  try {
+    const u = new URL(url);
+    return u.hostname + u.pathname;
+  } catch {
+    return url;
+  }
+}
+
+function truncate(text: string, max: number = 80): string {
+  if (text.length <= max) return text;
+  return text.substring(0, max) + '...';
+}
+
+async function loadPageHighlights(): Promise<void> {
+  pageHighlightsData = await new Promise<PageHighlights[]>((resolve) => {
+    chrome.runtime.sendMessage({ action: 'getAllHighlights' }, (response) =>
+      resolve(response || []),
+    );
+  });
+}
+
+async function init(): Promise<void> {
+  await Promise.all([loadCategories(), loadPageHighlights()]);
+  renderCategories();
+  selectCategory(PAGE_HIGHLIGHTS_ID);
+}
+
+async function loadCategories(): Promise<void> {
+  categories = await getAllCategories();
+}
+
+function renderCategories(): void {
+  categoryList.innerHTML = '';
+
+  const pageHighlightItem = createCategoryElement(
+    PAGE_HIGHLIGHTS_ID,
+    'Page Highlights',
+    pageHighlightsData.length,
+    '📌',
+    false,
+  );
+  categoryList.appendChild(pageHighlightItem);
+
+  for (const cat of categories) {
+    const el = createCategoryElement(cat.id, cat.name, 0, '📁', true);
+    categoryList.appendChild(el);
+  }
+
+  updateCategoryCounts();
+}
+
+function createCategoryElement(
+  id: string,
+  name: string,
+  count: number,
+  icon: string,
+  editable: boolean,
+): HTMLElement {
+  const item = document.createElement('div');
+  item.className = 'category-item' + (id === currentCategoryId ? ' active' : '');
+  item.dataset.categoryId = id;
+
+  item.innerHTML = `
+    <span class="category-icon">${icon}</span>
+    <span class="category-name">${escapeHtml(name)}</span>
+    <span class="category-count">${count}</span>
+    ${editable ? `
+      <div class="category-actions">
+        <button class="category-action-btn" data-action="rename" title="Rename">✏️</button>
+        <button class="category-action-btn" data-action="delete" title="Delete">🗑️</button>
+      </div>
+    ` : ''}
+  `;
+
+  item.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('.category-action-btn')) return;
+    selectCategory(id);
+  });
+
+  if (editable) {
+    item.querySelector('[data-action="rename"]')?.addEventListener('click', () =>
+      showRenameModal(id, name),
+    );
+    item.querySelector('[data-action="delete"]')?.addEventListener('click', () =>
+      handleDeleteCategory(id),
+    );
+  }
+
+  return item;
+}
+
+async function updateCategoryCounts(): Promise<void> {
+  for (const cat of categories) {
+    const catNotes = await getNotesByCategory(cat.id);
+    const el = categoryList.querySelector(`[data-category-id="${cat.id}"] .category-count`);
+    if (el) el.textContent = catNotes.length.toString();
+  }
+}
+
+async function selectCategory(categoryId: string): Promise<void> {
+  currentCategoryId = categoryId;
+  currentNoteId = null;
+  searchQuery = '';
+  notesSearchInput.value = '';
+
+  categoryList.querySelectorAll('.category-item').forEach((el) => el.classList.remove('active'));
+  const activeEl = categoryList.querySelector(`[data-category-id="${categoryId}"]`);
+  activeEl?.classList.add('active');
+
+  const isPageHighlights = categoryId === PAGE_HIGHLIGHTS_ID;
+  addNoteBtn.disabled = isPageHighlights;
+
+  if (isPageHighlights) {
+    notesHeaderTitle.textContent = 'Page Highlights';
+    renderPageHighlightsList();
+  } else {
+    const cat = categories.find((c) => c.id === categoryId);
+    notesHeaderTitle.textContent = cat?.name || 'Notes';
+    await loadAndRenderNotes(categoryId);
+  }
+
+  showEditorEmpty();
+}
+
+function renderPageHighlightsList(): void {
+  notesList.innerHTML = '';
+
+  if (pageHighlightsData.length === 0) {
+    notesList.innerHTML = `
+      <div class="notes-empty">
+        <div class="notes-empty-icon">📭</div>
+        <p>No page highlights yet</p>
+      </div>
+    `;
     return;
   }
 
-  paginationEl.style.display = 'flex';
+  const filtered = searchQuery
+    ? pageHighlightsData.filter(
+        (p) =>
+          getHostname(p.url).toLowerCase().includes(searchQuery) ||
+          p.highlights.some((h) => h.text.toLowerCase().includes(searchQuery)),
+      )
+    : pageHighlightsData;
 
-  const totalItems = filteredHighlights.length;
-  const startItem = (currentPage - 1) * itemsPerPage + 1;
-  const endItem = Math.min(currentPage * itemsPerPage, totalItems);
-
-  paginationInfo.textContent = `Showing ${startItem}-${endItem} of ${totalItems} highlights`;
-
-  let buttons = '';
-
-  // Previous button
-  buttons += `<button class="page-btn" data-page="${currentPage - 1}" ${currentPage === 1 ? 'disabled' : ''}>Prev</button>`;
-
-  // Page numbers
-  const maxVisiblePages = 5;
-  let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
-  let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
-
-  if (endPage - startPage + 1 < maxVisiblePages) {
-    startPage = Math.max(1, endPage - maxVisiblePages + 1);
+  if (filtered.length === 0) {
+    notesList.innerHTML = `
+      <div class="notes-empty">
+        <div class="notes-empty-icon">🔍</div>
+        <p>No results</p>
+      </div>
+    `;
+    return;
   }
 
-  if (startPage > 1) {
-    buttons += `<button class="page-btn" data-page="1">1</button>`;
-    if (startPage > 2) {
-      buttons += `<span style="padding: 6px;">...</span>`;
-    }
+  for (const page of filtered) {
+    const item = document.createElement('div');
+    item.className = 'note-item' + (currentNoteId === page.url ? ' active' : '');
+    item.dataset.pageUrl = page.url;
+
+    const highlightCount = page.highlights.length;
+    item.innerHTML = `
+      <div class="note-item-title">${escapeHtml(getHostname(page.url))}</div>
+      <div class="note-item-preview">${highlightCount} highlight${highlightCount !== 1 ? 's' : ''}</div>
+    `;
+
+    item.addEventListener('click', () => {
+      currentNoteId = page.url;
+      notesList.querySelectorAll('.note-item').forEach((el) => el.classList.remove('active'));
+      item.classList.add('active');
+      renderPageHighlightsContent(page);
+    });
+
+    notesList.appendChild(item);
   }
+}
 
-  for (let i = startPage; i <= endPage; i++) {
-    buttons += `<button class="page-btn ${i === currentPage ? 'active' : ''}" data-page="${i}">${i}</button>`;
-  }
+function renderPageHighlightsContent(page: PageHighlights): void {
+  editorToolbar.style.display = 'none';
+  noteTitle.style.display = 'none';
+  editorEmpty.style.display = 'none';
+  editorTextarea.style.display = 'none';
+  editorPreview.style.display = 'block';
 
-  if (endPage < totalPages) {
-    if (endPage < totalPages - 1) {
-      buttons += `<span style="padding: 6px;">...</span>`;
-    }
-    buttons += `<button class="page-btn" data-page="${totalPages}">${totalPages}</button>`;
-  }
-
-  // Next button
-  buttons += `<button class="page-btn" data-page="${currentPage + 1}" ${currentPage === totalPages ? 'disabled' : ''}>Next</button>`;
-
-  paginationControls.innerHTML = buttons;
-
-  // Items per page selector
-  const itemsPerPageHtml = `
-    <div class="items-per-page">
-      <span>Show:</span>
-      <select id="items-per-page">
-        <option value="10" ${itemsPerPage === 10 ? 'selected' : ''}>10</option>
-        <option value="20" ${itemsPerPage === 20 ? 'selected' : ''}>20</option>
-        <option value="50" ${itemsPerPage === 50 ? 'selected' : ''}>50</option>
-        <option value="100" ${itemsPerPage === 100 ? 'selected' : ''}>100</option>
-      </select>
+  let html = `
+    <div class="page-url-header" style="margin: 0 -24px 16px; padding: 12px 24px; background: #f8f9fa; border-bottom: 1px solid #e0e0e0;">
+      <a href="${page.url}" target="_blank">${escapeHtml(page.url)}</a>
     </div>
   `;
-  paginationControls.insertAdjacentHTML('beforeend', itemsPerPageHtml);
 
-  // Event listeners
-  paginationControls.querySelectorAll('.page-btn[data-page]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const page = parseInt((btn as HTMLElement).dataset.page || '1');
-      if (page >= 1 && page <= Math.ceil(filteredHighlights.length / itemsPerPage)) {
-        currentPage = page;
-        renderTable();
-      }
-    });
-  });
+  for (const h of page.highlights) {
+    const colorClass = 'hl-' + (h.color || 'yellow');
+    html += `
+      <div class="highlight-card">
+        <div class="highlight-card-text ${colorClass}">${escapeHtml(h.text)}</div>
+        ${h.comment ? `<div class="highlight-card-comment">${escapeHtml(h.comment)}</div>` : ''}
+        <div class="highlight-card-meta">
+          <span class="highlight-card-date">${formatDate(h.createdAt)}</span>
+          ${
+            h.tags && h.tags.length > 0
+              ? `<div class="highlight-card-tags">${h.tags.map((t) => `<span class="highlight-tag">${escapeHtml(t)}</span>`).join('')}</div>`
+              : ''
+          }
+        </div>
+      </div>
+    `;
+  }
 
-  const itemsPerPageSelect = document.getElementById('items-per-page') as HTMLSelectElement;
-  itemsPerPageSelect?.addEventListener('change', () => {
-    itemsPerPage = parseInt(itemsPerPageSelect.value);
-    currentPage = 1;
-    renderTable();
-  });
+  editorPreview.innerHTML = html;
 }
 
-// Handle Actions
-function handleAction(event: Event): void {
-  const target = event.target as HTMLElement;
-  const action = target.dataset.action;
-  const id = target.dataset.id;
-  const url = target.dataset.url;
+async function loadAndRenderNotes(categoryId: string): Promise<void> {
+  notes = await getNotesByCategory(categoryId);
+  renderNotesList();
+}
 
-  if (!action) return;
+function renderNotesList(): void {
+  notesList.innerHTML = '';
 
-  switch (action) {
-    case 'navigate':
-      if (url) {
-        chrome.tabs.create({ url });
-      }
-      break;
-    case 'edit':
-      if (id && url) {
-        openEditModal(id, url);
-      }
-      break;
-    case 'delete':
-      if (id && url) {
-        deleteHighlight(id, url);
-      }
-      break;
+  const filtered = searchQuery
+    ? notes.filter(
+        (n) =>
+          n.title.toLowerCase().includes(searchQuery) ||
+          n.content.toLowerCase().includes(searchQuery),
+      )
+    : notes;
+
+  if (filtered.length === 0) {
+    notesList.innerHTML = `
+      <div class="notes-empty">
+        <div class="notes-empty-icon">${searchQuery ? '🔍' : '📝'}</div>
+        <p>${searchQuery ? 'No results' : 'No notes yet'}</p>
+      </div>
+    `;
+    return;
+  }
+
+  for (const note of filtered) {
+    const item = document.createElement('div');
+    item.className = 'note-item' + (currentNoteId === note.id ? ' active' : '');
+    item.dataset.noteId = note.id;
+
+    const preview = note.content
+      ? truncate(note.content.replace(/[#*`\-[\]]/g, '').trim(), 60)
+      : 'Empty note';
+
+    item.innerHTML = `
+      <div class="note-item-title">${escapeHtml(note.title || 'Untitled')}</div>
+      <div class="note-item-preview">${escapeHtml(preview)}</div>
+      <div class="note-item-date">${formatDate(note.updatedAt)}</div>
+    `;
+
+    item.addEventListener('click', () => openNote(note.id));
+    notesList.appendChild(item);
   }
 }
 
-// Load Data
-async function loadHighlights(): Promise<void> {
-  tableBody.innerHTML = `
-    <tr>
-      <td colspan="7" class="loading">Loading highlights...</td>
-    </tr>
-  `;
+async function openNote(noteId: string): Promise<void> {
+  currentNoteId = noteId;
+  const note = await getNote(noteId);
+  if (!note) return;
+
+  notesList.querySelectorAll('.note-item').forEach((el) => el.classList.remove('active'));
+  const activeItem = notesList.querySelector(`[data-note-id="${noteId}"]`);
+  activeItem?.classList.add('active');
+
+  editorToolbar.style.display = 'flex';
+  noteTitle.style.display = 'block';
+  editorEmpty.style.display = 'none';
+
+  noteTitle.value = note.title;
+  editorTextarea.value = note.content;
+
+  if (isPreviewMode) {
+    showPreview();
+  } else {
+    showEditor();
+  }
+}
+
+function showEditorEmpty(): void {
+  editorToolbar.style.display = 'none';
+  noteTitle.style.display = 'none';
+  editorEmpty.style.display = 'flex';
+  editorTextarea.style.display = 'none';
+  editorPreview.style.display = 'none';
+}
+
+function showEditor(): void {
+  isPreviewMode = false;
+  editorTextarea.style.display = 'block';
+  editorPreview.style.display = 'none';
+  btnEdit.classList.add('active');
+  btnPreview.classList.remove('active');
+  editorTextarea.focus();
+}
+
+function showPreview(): void {
+  isPreviewMode = true;
+  editorTextarea.style.display = 'none';
+  editorPreview.style.display = 'block';
+  btnEdit.classList.remove('active');
+  btnPreview.classList.add('active');
+  renderMarkdownPreview(editorTextarea.value);
+}
+
+async function renderMarkdownPreview(content: string): Promise<void> {
+  const html = await marked.parse(content);
+  editorPreview.innerHTML = html;
+  enableCheckboxes();
 
   try {
-    const pages = await new Promise<PageHighlights[]>((resolve) => {
-      chrome.runtime.sendMessage(
-        { action: 'getAllHighlights' },
-        (response) => resolve(response || [])
-      );
+    const mermaidEls = editorPreview.querySelectorAll<HTMLElement>('.mermaid');
+    if (mermaidEls.length > 0) {
+      await mermaid.run({ nodes: mermaidEls });
+    }
+  } catch (err) {
+    console.debug('Mermaid render error:', err);
+  }
+}
+
+function enableCheckboxes(): void {
+  const checkboxes = editorPreview.querySelectorAll<HTMLInputElement>(
+    'input[type="checkbox"]',
+  );
+  checkboxes.forEach((cb, idx) => {
+    cb.removeAttribute('disabled');
+    cb.addEventListener('change', () => handleCheckboxToggle(idx, cb.checked));
+  });
+}
+
+async function handleCheckboxToggle(index: number, checked: boolean): Promise<void> {
+  if (!currentNoteId || currentCategoryId === PAGE_HIGHLIGHTS_ID) return;
+
+  const note = await getNote(currentNoteId);
+  if (!note) return;
+
+  let count = 0;
+  const lines = note.content.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    if (/^\s*[-*+]\s*\[([ xX])\]/.test(lines[i])) {
+      if (count === index) {
+        lines[i] = checked
+          ? lines[i].replace(/\[([ ])\]/, '[x]')
+          : lines[i].replace(/\[([xX])\]/, '[ ]');
+        break;
+      }
+      count++;
+    }
+  }
+
+  const newContent = lines.join('\n');
+  await updateNote(currentNoteId, { content: newContent });
+  editorTextarea.value = newContent;
+  showSaveStatus('saved');
+
+  renderMarkdownPreview(newContent);
+}
+
+function scheduleSave(): void {
+  if (saveTimer) clearTimeout(saveTimer);
+  showSaveStatus('saving');
+  saveTimer = setTimeout(async () => {
+    if (!currentNoteId || currentCategoryId === PAGE_HIGHLIGHTS_ID) return;
+    await updateNote(currentNoteId, {
+      title: noteTitle.value.trim() || 'Untitled',
+      content: editorTextarea.value,
     });
+    showSaveStatus('saved');
+    updateNoteInList(currentNoteId);
+  }, 600);
+}
 
-    allHighlights = pages.flatMap(p =>
-      p.highlights.map(h => ({ ...h, url: p.url }))
-    );
-
-    // Update tag filter dropdown
-    updateTagFilter();
-
-    // Initial render
-    renderTable();
-  } catch (error) {
-    console.error('Error loading highlights:', error);
-    tableBody.innerHTML = `
-      <tr>
-        <td colspan="7" class="empty-state">
-          <div class="empty-state-icon">❌</div>
-          <p>Error loading highlights</p>
-        </td>
-      </tr>
-    `;
+function showSaveStatus(status: 'saving' | 'saved'): void {
+  saveIndicator.textContent = status === 'saving' ? 'Saving...' : 'Saved';
+  saveIndicator.className = 'save-indicator ' + status;
+  if (status === 'saved') {
+    setTimeout(() => {
+      saveIndicator.textContent = '';
+      saveIndicator.className = 'save-indicator';
+    }, 2000);
   }
 }
 
-// Update Tag Filter
-function updateTagFilter(): void {
-  const tags = getUniqueTags(allHighlights);
-  const currentValue = tagFilter.value;
+function updateNoteInList(noteId: string): void {
+  const item = notesList.querySelector(`[data-note-id="${noteId}"]`);
+  if (!item) return;
 
-  tagFilter.innerHTML = '<option value="">All Tags</option>' +
-    tags.map(tag => `<option value="${escapeHtml(tag)}">${escapeHtml(tag)}</option>`).join('');
+  const titleEl = item.querySelector('.note-item-title');
+  const previewEl = item.querySelector('.note-item-preview');
+  const dateEl = item.querySelector('.note-item-date');
 
-  if (tags.includes(currentValue)) {
-    tagFilter.value = currentValue;
+  if (titleEl) titleEl.textContent = noteTitle.value.trim() || 'Untitled';
+  if (previewEl) {
+    const preview = editorTextarea.value
+      ? truncate(editorTextarea.value.replace(/[#*`\-[\]]/g, '').trim(), 60)
+      : 'Empty note';
+    previewEl.textContent = preview;
   }
+  if (dateEl) dateEl.textContent = formatDate(Date.now());
 }
 
-// Edit Modal
-function openEditModal(id: string, url: string): Promise<void> {
-  editingHighlightId = id;
-  editingHighlightUrl = url;
-
-  const highlight = allHighlights.find(h => h.id === id);
-  if (!highlight) return Promise.resolve();
-
-  editComment.value = highlight.comment || '';
-  editTags = [...(highlight.tags || [])];
-  renderEditTags();
-
-  editModal.classList.add('active');
-  setTimeout(() => editComment.focus(), 100);
-
-  return Promise.resolve();
+async function handleCreateNote(): Promise<void> {
+  if (!currentCategoryId || currentCategoryId === PAGE_HIGHLIGHTS_ID) return;
+  const note = await createNote(currentCategoryId, 'Untitled');
+  notes.unshift(note);
+  renderNotesList();
+  openNote(note.id);
+  noteTitle.focus();
+  noteTitle.select();
+  updateCategoryCounts();
 }
 
-function closeEditModal(): void {
-  editModal.classList.remove('active');
-  editingHighlightId = null;
-  editingHighlightUrl = null;
-  editTags = [];
-}
-
-function renderEditTags(): void {
-  const input = editTagsInput;
-  editTagsContainer.innerHTML = '';
-
-  editTags.forEach(tag => {
-    const tagEl = document.createElement('span');
-    tagEl.className = 'modal-tag';
-    tagEl.innerHTML = `${escapeHtml(tag)}
-      <button class="modal-tag-remove" data-tag="${escapeHtml(tag)}">×</button>
-    `;
-    editTagsContainer.appendChild(tagEl);
-  });
-
-  editTagsContainer.appendChild(input);
-  input.focus();
-}
-
-async function saveEdit(): Promise<void> {
-  if (!editingHighlightId || !editingHighlightUrl) return;
-
-  const updates = {
-    comment: editComment.value.trim(),
-    tags: editTags
-  };
-
-  await new Promise<void>((resolve) => {
-    chrome.runtime.sendMessage(
-      {
-        action: 'updateHighlightData',
-        url: editingHighlightUrl,
-        highlightId: editingHighlightId,
-        updates
-      },
-      () => resolve()
-    );
-  });
-
-  closeEditModal();
-  await loadHighlights();
-}
-
-async function deleteHighlight(id: string, url: string): Promise<void> {
-  const confirmed = confirm('Are you sure you want to delete this highlight?');
+async function handleDeleteCurrentNote(): Promise<void> {
+  if (!currentNoteId || currentCategoryId === PAGE_HIGHLIGHTS_ID) return;
+  const confirmed = confirm('Delete this note?');
   if (!confirmed) return;
 
-  await new Promise<void>((resolve) => {
-    chrome.runtime.sendMessage(
-      { action: 'removeHighlightData', url, highlightId: id },
-      () => resolve()
-    );
-  });
-
-  await loadHighlights();
+  await deleteNote(currentNoteId);
+  notes = notes.filter((n) => n.id !== currentNoteId);
+  currentNoteId = null;
+  renderNotesList();
+  showEditorEmpty();
+  updateCategoryCounts();
 }
 
-// Event Listeners
-tagFilter.addEventListener('change', () => {
-  currentTagFilter = tagFilter.value;
-  currentPage = 1;
-  renderTable();
-});
+let modalResolve: ((value: string | null) => void) | null = null;
 
-searchInput.addEventListener('input', () => {
-  currentSearchQuery = searchInput.value;
-  currentPage = 1;
-  renderTable();
-});
+function showModal(title: string, placeholder: string, confirmText: string, defaultValue = ''): Promise<string | null> {
+  modalTitle.textContent = title;
+  modalInput.placeholder = placeholder;
+  modalInput.value = defaultValue;
+  modalConfirm.textContent = confirmText;
+  modalOverlay.classList.add('active');
+  setTimeout(() => {
+    modalInput.focus();
+    modalInput.select();
+  }, 50);
 
-searchInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') {
-    searchInput.value = '';
-    currentSearchQuery = '';
-    renderTable();
-  }
-});
-
-refreshBtn.addEventListener('click', () => {
-  loadHighlights();
-});
-
-// Sort headers
-document.querySelectorAll('th[data-sort]').forEach(th => {
-  th.addEventListener('click', () => {
-    const column = (th as HTMLElement).dataset.sort || 'createdAt';
-
-    if (currentSort.column === column) {
-      currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
-    } else {
-      currentSort.column = column;
-      currentSort.direction = 'desc';
-    }
-
-    // Update header classes
-    document.querySelectorAll('th').forEach(h => {
-      h.classList.remove('sorted-asc', 'sorted-desc');
-    });
-    th.classList.add(`sorted-${currentSort.direction}`);
-
-    renderTable();
+  return new Promise((resolve) => {
+    modalResolve = resolve;
   });
-});
+}
 
-// Modal events
-modalCancel.addEventListener('click', closeEditModal);
-modalSave.addEventListener('click', saveEdit);
-
-editModal.addEventListener('click', (e) => {
-  if (e.target === editModal) {
-    closeEditModal();
+function closeModal(value: string | null): void {
+  modalOverlay.classList.remove('active');
+  if (modalResolve) {
+    modalResolve(value);
+    modalResolve = null;
   }
-});
+}
 
-editTagsInput.addEventListener('keydown', (e) => {
+async function handleAddCategory(): Promise<void> {
+  const name = await showModal('New Category', 'Category name', 'Create');
+  if (!name?.trim()) return;
+  const cat = await createCategory(name.trim());
+  categories.push(cat);
+  renderCategories();
+  selectCategory(cat.id);
+}
+
+async function showRenameModal(categoryId: string, currentName: string): Promise<void> {
+  const name = await showModal('Rename Category', 'Category name', 'Rename', currentName);
+  if (!name?.trim() || name.trim() === currentName) return;
+  await renameCategory(categoryId, name.trim());
+  const cat = categories.find((c) => c.id === categoryId);
+  if (cat) cat.name = name.trim();
+  renderCategories();
+  if (currentCategoryId === categoryId) {
+    notesHeaderTitle.textContent = name.trim();
+  }
+}
+
+async function handleDeleteCategory(categoryId: string): Promise<void> {
+  const cat = categories.find((c) => c.id === categoryId);
+  if (!cat) return;
+  const confirmed = confirm(`Delete "${cat.name}" and all its notes?`);
+  if (!confirmed) return;
+
+  await deleteCategory(categoryId);
+  categories = categories.filter((c) => c.id !== categoryId);
+  renderCategories();
+
+  if (currentCategoryId === categoryId) {
+    selectCategory(PAGE_HIGHLIGHTS_ID);
+  }
+}
+
+addCategoryBtn.addEventListener('click', handleAddCategory);
+addNoteBtn.addEventListener('click', handleCreateNote);
+btnEdit.addEventListener('click', showEditor);
+btnPreview.addEventListener('click', showPreview);
+btnDeleteNote.addEventListener('click', handleDeleteCurrentNote);
+
+editorTextarea.addEventListener('input', scheduleSave);
+noteTitle.addEventListener('input', scheduleSave);
+
+noteTitle.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     e.preventDefault();
-    const tag = editTagsInput.value.trim();
-    if (tag && !editTags.includes(tag)) {
-      editTags.push(tag);
-      renderEditTags();
-    }
-    editTagsInput.value = '';
-  } else if (e.key === 'Backspace' && editTagsInput.value === '' && editTags.length > 0) {
-    editTags.pop();
-    renderEditTags();
+    editorTextarea.focus();
   }
 });
 
-editTagsContainer.addEventListener('click', (e) => {
-  const target = e.target as HTMLElement;
-  if (target.classList.contains('modal-tag-remove')) {
-    const tag = target.dataset.tag;
-    editTags = editTags.filter(t => t !== tag);
-    renderEditTags();
+notesSearchInput.addEventListener('input', () => {
+  searchQuery = notesSearchInput.value.toLowerCase();
+  if (currentCategoryId === PAGE_HIGHLIGHTS_ID) {
+    renderPageHighlightsList();
+  } else {
+    renderNotesList();
   }
 });
 
-// Keyboard shortcuts
+modalCancel.addEventListener('click', () => closeModal(null));
+modalConfirm.addEventListener('click', () => closeModal(modalInput.value));
+modalInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') closeModal(modalInput.value);
+  if (e.key === 'Escape') closeModal(null);
+});
+modalOverlay.addEventListener('click', (e) => {
+  if (e.target === modalOverlay) closeModal(null);
+});
+
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && editModal.classList.contains('active')) {
-    closeEditModal();
+  if (e.key === 'Escape' && modalOverlay.classList.contains('active')) {
+    closeModal(null);
   }
-  if (e.key === 'Enter' && e.ctrlKey && editModal.classList.contains('active')) {
-    saveEdit();
+  if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+    e.preventDefault();
+    if (currentNoteId && currentCategoryId !== PAGE_HIGHLIGHTS_ID) {
+      if (saveTimer) clearTimeout(saveTimer);
+      updateNote(currentNoteId, {
+        title: noteTitle.value.trim() || 'Untitled',
+        content: editorTextarea.value,
+      }).then(() => showSaveStatus('saved'));
+    }
   }
 });
 
-// Initialize
-loadHighlights();
-
-// Listen for storage changes
-chrome.storage.onChanged.addListener(() => {
-  loadHighlights();
+editorTextarea.addEventListener('keydown', (e) => {
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const start = editorTextarea.selectionStart;
+    const end = editorTextarea.selectionEnd;
+    editorTextarea.value =
+      editorTextarea.value.substring(0, start) + '  ' + editorTextarea.value.substring(end);
+    editorTextarea.selectionStart = editorTextarea.selectionEnd = start + 2;
+    scheduleSave();
+  }
 });
 
-// Listen for highlights-updated event
-window.addEventListener('highlights-updated', () => {
-  loadHighlights();
-});
+init();
