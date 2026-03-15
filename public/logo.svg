@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <!-- Bridge arch -->
+  <path d="M18 76 C18 28 110 28 110 76" stroke="#4F8CFF" stroke-width="12" stroke-linecap="round"/>
+  <!-- Bridge deck -->
+  <line x1="10" y1="76" x2="118" y2="76" stroke="#4F8CFF" stroke-width="10" stroke-linecap="round"/>
+  <!-- Left pillar -->
+  <line x1="42" y1="52" x2="42" y2="76" stroke="#4F8CFF" stroke-width="8" stroke-linecap="round"/>
+  <!-- Right pillar -->
+  <line x1="86" y1="52" x2="86" y2="76" stroke="#4F8CFF" stroke-width="8" stroke-linecap="round"/>
+  <!-- Highlight marker stroke -->
+  <rect x="14" y="94" width="100" height="16" rx="8" fill="#FFD54F"/>
+</svg>
