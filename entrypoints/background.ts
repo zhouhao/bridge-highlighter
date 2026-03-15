@@ -6,6 +6,10 @@ import {
   getAllHighlights,
 } from '@/utils/db';
 
+function broadcastHighlightsChanged(): void {
+  chrome.runtime.sendMessage({ action: 'highlightsChanged' }).catch(() => {});
+}
+
 export default defineBackground(() => {
   // Create context menu on install
   chrome.runtime.onInstalled.addListener(() => {
@@ -38,13 +42,22 @@ export default defineBackground(() => {
       getHighlightsForUrl(message.url).then(sendResponse);
       return true;
     } else if (message.action === 'saveHighlightData') {
-      saveHighlight(message.url, message.highlight).then(() => sendResponse(true));
+      saveHighlight(message.url, message.highlight).then(() => {
+        sendResponse(true);
+        broadcastHighlightsChanged();
+      });
       return true;
     } else if (message.action === 'updateHighlightData') {
-      updateHighlight(message.url, message.highlightId, message.updates).then(() => sendResponse(true));
+      updateHighlight(message.url, message.highlightId, message.updates).then(() => {
+        sendResponse(true);
+        broadcastHighlightsChanged();
+      });
       return true;
     } else if (message.action === 'removeHighlightData') {
-      removeHighlight(message.url, message.highlightId).then(() => sendResponse(true));
+      removeHighlight(message.url, message.highlightId).then(() => {
+        sendResponse(true);
+        broadcastHighlightsChanged();
+      });
       return true;
     } else if (message.action === 'getAllHighlights') {
       getAllHighlights().then(sendResponse);

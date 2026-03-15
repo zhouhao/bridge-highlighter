@@ -370,7 +370,7 @@ window.addEventListener('highlights-updated', () => {
 });
 
 chrome.runtime.onMessage.addListener((message) => {
-  if (message.action === 'tabActivated') {
+  if (message.action === 'tabActivated' || message.action === 'highlightsChanged') {
     if (document.querySelector('.tab.active')?.getAttribute('data-tab') === 'current') {
       loadCurrentPageHighlights();
     }
